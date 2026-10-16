@@ -1,0 +1,8 @@
+{
+  "name": "Void Extractor 3D",
+  "description": "A high-octane 3D space extraction roguelike game built with Three.js, WebGL object pooling, procedural audio, and cyberpunk neon HUD.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

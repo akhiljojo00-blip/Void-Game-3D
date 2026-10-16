@@ -1,0 +1,16 @@
+{
+  "short_name": "Void Extractor",
+  "name": "Void Extractor 3D",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#030712",
+  "theme_color": "#06b6d4",
+  "display": "fullscreen",
+  "orientation": "landscape-primary"
+}

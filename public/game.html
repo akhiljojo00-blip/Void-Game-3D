@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Void Extractor 3D - Space Extraction Roguelike</title>
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Three.js via CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+      background-color: #030712;
+    }
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+  </style>
+</head>
+<body class="text-gray-100 font-sans" data-state="title">
+
+  <!-- Fullscreen WebGL Canvas Container -->
+  <div id="canvas-container" class="fixed inset-0 w-full h-full z-0"></div>
+
+  <!-- Cyberpunk Translucent Neon HUD Overlay -->
+  <div id="hud" class="fixed inset-0 pointer-events-none z-10 hidden flex-col justify-between p-3 sm:p-5">
+    <!-- Top HUD Cluster -->
+    <header class="flex flex-col gap-2 w-full max-w-5xl mx-auto">
+      <div class="flex items-center gap-2 w-full">
+        <!-- Shields Bar -->
+        <div id="shield-card" class="flex-1 bg-gray-900/85 border border-cyan-500/60 text-cyan-300 p-2 rounded-lg shadow-[0_0_10px_rgba(6,182,212,0.25)]">
+          <div class="flex items-center justify-between text-[11px] sm:text-xs font-mono font-semibold tracking-wider mb-1">
+            <span>🛡️ SHIELDS</span>
+            <span id="shield-text" class="tabular-nums font-bold">100%</span>
+          </div>
+          <div class="w-full bg-gray-950 h-2 rounded-full overflow-hidden border border-cyan-900/60">
+            <div id="shield-bar" class="h-full bg-gradient-to-r from-cyan-600 via-teal-400 to-cyan-300 transition-all duration-150 rounded-full" style="width: 100%;"></div>
+          </div>
+        </div>
+
+        <!-- Fuel Bar -->
+        <div id="fuel-card" class="flex-1 bg-gray-900/85 border border-purple-500/60 text-purple-300 p-2 rounded-lg shadow-[0_0_10px_rgba(168,85,247,0.25)]">
+          <div class="flex items-center justify-between text-[11px] sm:text-xs font-mono font-semibold tracking-wider mb-1">
+            <span>⚡ FUEL</span>
+            <span id="fuel-text" class="tabular-nums font-bold">100%</span>
+          </div>
+          <div class="w-full bg-gray-950 h-2 rounded-full overflow-hidden border border-purple-900/60">
+            <div id="fuel-bar" class="h-full bg-gradient-to-r from-purple-600 via-fuchsia-400 to-purple-300 transition-all duration-150 rounded-full" style="width: 100%;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 2: Scrap Ore & Controls -->
+      <div class="flex items-center justify-between gap-2 w-full">
+        <div class="flex items-center gap-2 bg-gray-900/90 border border-amber-500/70 px-3 py-1 rounded-lg shadow-[0_0_10px_rgba(251,191,36,0.25)]">
+          <span class="text-amber-400">💎</span>
+          <span class="text-[10px] font-mono uppercase tracking-wider text-amber-400 font-bold">SCRAP</span>
+          <div class="flex items-baseline gap-0.5 font-mono font-bold text-sm text-amber-300 tabular-nums">
+            <span id="scrap-text">0</span>
+            <span class="text-[10px] text-amber-500/70">/20</span>
+          </div>
+          <span id="warp-badge" class="hidden ml-1 px-1.5 py-0.5 rounded bg-cyan-500/20 border border-cyan-400 text-cyan-300 text-[10px] font-mono font-bold uppercase animate-pulse">WARP GATE ACTIVE</span>
+        </div>
+
+        <div class="flex items-center gap-1.5">
+          <div class="bg-gray-900/85 border border-cyan-500/40 px-2.5 py-1 rounded-lg">
+            <span id="score-text" class="text-xs font-mono font-bold text-cyan-200 tabular-nums">0</span>
+          </div>
+          <button id="btn-mute" aria-label="Toggle Mute" class="pointer-events-auto p-1.5 rounded-lg bg-gray-900/90 border border-gray-700 hover:border-cyan-400 text-gray-300 text-xs">🔊</button>
+          <button id="btn-pause" aria-label="Pause Game" class="pointer-events-auto p-1.5 rounded-lg bg-gray-900/90 border border-gray-700 hover:border-cyan-400 text-gray-300 text-xs">⏸️</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Bottom Controls Hint & Fire Button -->
+    <footer class="w-full max-w-5xl mx-auto flex items-center justify-between text-xs font-mono text-gray-400 pb-1">
+      <div class="hidden sm:block">
+        <span class="text-cyan-400 font-semibold">WASD / ARROWS</span> Move Ship &bull; 
+        <span class="text-cyan-400 font-semibold">SPACE</span> Fire Lasers &bull; 
+        <span class="text-cyan-400 font-semibold">P / ESC</span> Pause &bull; 
+        <span class="text-cyan-400 font-semibold">M</span> Mute
+      </div>
+      <button id="btn-fire-desktop" class="pointer-events-auto hidden sm:flex items-center gap-1 px-3 py-1 bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/50 text-cyan-300 rounded text-xs font-mono">
+        🎯 FIRE LASER [SPACE]
+      </button>
+    </footer>
+  </div>
+
+  <!-- Mobile On-Screen Touch Controls -->
+  <div id="mobile-controls" class="fixed inset-x-0 bottom-3 px-4 z-20 hidden items-end justify-between pointer-events-none md:hidden">
+    <!-- D-Pad -->
+    <div class="pointer-events-auto bg-gray-950/70 border border-cyan-500/40 rounded-2xl p-2.5 grid grid-cols-3 gap-1.5 w-36 h-36">
+      <div></div>
+      <button id="touch-up" class="flex items-center justify-center rounded-lg border border-cyan-500/50 bg-gray-900/80 text-cyan-400 active:bg-cyan-500 active:text-gray-950 font-bold">▲</button>
+      <div></div>
+      <button id="touch-left" class="flex items-center justify-center rounded-lg border border-cyan-500/50 bg-gray-900/80 text-cyan-400 active:bg-cyan-500 active:text-gray-950 font-bold">◀</button>
+      <div class="flex items-center justify-center"><div class="w-2.5 h-2.5 rounded-full bg-cyan-400/50"></div></div>
+      <button id="touch-right" class="flex items-center justify-center rounded-lg border border-cyan-500/50 bg-gray-900/80 text-cyan-400 active:bg-cyan-500 active:text-gray-950 font-bold">▶</button>
+      <div></div>
+      <button id="touch-down" class="flex items-center justify-center rounded-lg border border-cyan-500/50 bg-gray-900/80 text-cyan-400 active:bg-cyan-500 active:text-gray-950 font-bold">▼</button>
+      <div></div>
+    </div>
+    <!-- Fire Button -->
+    <button id="touch-fire" class="pointer-events-auto w-20 h-20 rounded-full bg-gradient-to-tr from-cyan-600 to-purple-600 active:from-cyan-400 active:to-purple-400 border-2 border-cyan-300 text-white flex flex-col items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.4)]">
+      <span class="text-lg">🎯</span>
+      <span class="text-[10px] font-mono font-bold">FIRE</span>
+    </button>
+  </div>
+
+  <!-- START SCREEN MODAL -->
+  <div id="screen-start" class="fixed inset-0 z-30 flex items-center justify-center p-4 bg-gray-950/90 pointer-events-auto">
+    <div class="max-w-xl w-full bg-gray-900 border-2 border-cyan-500/80 rounded-2xl p-6 sm:p-8 shadow-[0_0_35px_rgba(6,182,212,0.3)] text-center relative overflow-hidden">
+      <div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-purple-500 via-cyan-400 to-purple-500"></div>
+      <div class="inline-block px-3 py-1 bg-cyan-950/80 border border-cyan-500/50 rounded-full text-cyan-300 font-mono text-xs uppercase tracking-widest mb-3">
+        Deep Space Extraction Roguelike 3D
+      </div>
+      <h1 class="text-4xl sm:text-5xl font-black font-mono tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-teal-200 to-purple-400 mb-2">
+        VOID EXTRACTOR
+      </h1>
+      <p class="text-sm sm:text-base text-gray-300 mb-6 max-w-md mx-auto">
+        Evade asteroids, eliminate tracking drones, harvest glowing green fuel cells, and collect <span class="text-amber-400 font-semibold">20 Scrap Ore</span> to open the Extraction Warp Gate!
+      </p>
+
+      <div class="grid grid-cols-3 gap-2.5 mb-6 text-left font-mono">
+        <div class="bg-gray-950/80 border border-cyan-500/30 p-2.5 rounded-lg">
+          <div class="text-cyan-400 text-xs font-bold mb-1">🛡️ SHIELDS</div>
+          <div class="text-[11px] text-gray-400">Damaged on impact.</div>
+        </div>
+        <div class="bg-gray-950/80 border border-purple-500/30 p-2.5 rounded-lg">
+          <div class="text-purple-400 text-xs font-bold mb-1">⚡ FUEL</div>
+          <div class="text-[11px] text-gray-400">Drains steadily.</div>
+        </div>
+        <div class="bg-gray-950/80 border border-amber-500/30 p-2.5 rounded-lg">
+          <div class="text-amber-400 text-xs font-bold mb-1">💎 20 SCRAP</div>
+          <div class="text-[11px] text-gray-400">Spawns warp gate!</div>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-around bg-gray-950/70 border border-gray-800 rounded-xl p-3 mb-6 text-xs font-mono">
+        <div>
+          <div class="text-gray-400">BEST SCORE</div>
+          <div id="start-high-score" class="text-cyan-300 font-bold text-base tabular-nums">0</div>
+        </div>
+        <div class="h-6 w-px bg-gray-800"></div>
+        <div>
+          <div class="text-gray-400">LIFETIME SCRAP</div>
+          <div id="start-scrap" class="text-amber-300 font-bold text-base tabular-nums">0</div>
+        </div>
+      </div>
+
+      <button id="btn-start" data-start="true" class="w-full py-4 px-6 bg-gradient-to-r from-cyan-500 via-teal-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 text-gray-950 font-mono font-black text-xl rounded-xl shadow-[0_0_25px_rgba(6,182,212,0.6)] cursor-pointer">
+        🚀 LAUNCH MISSION
+      </button>
+      <p class="mt-3 text-xs font-mono text-gray-500">Press ENTER or SPACE to Launch</p>
+    </div>
+  </div>
+
+  <!-- GAME OVER MODAL -->
+  <div id="screen-gameover" class="fixed inset-0 z-30 hidden items-center justify-center p-4 bg-gray-950/92 pointer-events-auto">
+    <div class="max-w-md w-full bg-gray-900 border-2 border-red-500/80 rounded-2xl p-6 sm:p-8 shadow-[0_0_40px_rgba(239,68,68,0.35)] text-center relative overflow-hidden">
+      <div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-red-600 via-rose-500 to-amber-600"></div>
+      <div class="text-4xl mb-2">💥</div>
+      <h2 class="text-3xl font-black font-mono tracking-tight text-red-400 mb-1">MISSION FAILED</h2>
+      <p id="gameover-reason" class="text-sm font-mono text-gray-300 mb-6 bg-red-950/50 border border-red-900/60 py-2 px-3 rounded-lg">Hull Breach Detected</p>
+
+      <div class="grid grid-cols-2 gap-3 mb-6 font-mono text-left">
+        <div class="bg-gray-950/80 border border-gray-800 p-3 rounded-xl">
+          <span class="text-[10px] text-gray-400 uppercase">Score</span>
+          <div id="gameover-score" class="text-xl font-bold text-cyan-300 tabular-nums">0</div>
+        </div>
+        <div class="bg-gray-950/80 border border-gray-800 p-3 rounded-xl">
+          <span class="text-[10px] text-gray-400 uppercase">Scrap Collected</span>
+          <div id="gameover-scrap" class="text-xl font-bold text-amber-300 tabular-nums">0/20</div>
+        </div>
+      </div>
+
+      <button id="btn-restart-gameover" data-start="true" class="w-full py-3.5 px-6 bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 hover:from-red-500 text-white font-mono font-black text-lg rounded-xl shadow-[0_0_25px_rgba(239,68,68,0.5)] cursor-pointer">
+        🔄 RE-DEPLOY
+      </button>
+    </div>
+  </div>
+
+  <!-- VICTORY MODAL -->
+  <div id="screen-victory" class="fixed inset-0 z-30 hidden items-center justify-center p-4 bg-gray-950/92 pointer-events-auto">
+    <div class="max-w-md w-full bg-gray-900 border-2 border-cyan-400 rounded-2xl p-6 sm:p-8 shadow-[0_0_40px_rgba(34,211,238,0.4)] text-center relative overflow-hidden">
+      <div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-cyan-400 via-teal-300 to-purple-400"></div>
+      <div class="text-4xl mb-2">🏆</div>
+      <h2 class="text-3xl font-black font-mono tracking-tight text-cyan-300 mb-1">EXTRACTION SUCCESSFUL!</h2>
+      <p class="text-sm font-mono text-gray-300 mb-6 bg-cyan-950/50 border border-cyan-800/60 py-2 px-3 rounded-lg">Warp Jump Initiated &bull; Cargo Secured</p>
+
+      <div class="grid grid-cols-2 gap-3 mb-6 font-mono text-left">
+        <div class="bg-gray-950/80 border border-cyan-900/60 p-3 rounded-xl">
+          <span class="text-[10px] text-gray-400 uppercase">Final Score</span>
+          <div id="victory-score" class="text-xl font-bold text-cyan-300 tabular-nums">0</div>
+        </div>
+        <div class="bg-gray-950/80 border border-amber-900/60 p-3 rounded-xl">
+          <span class="text-[10px] text-gray-400 uppercase">Scrap Delivered</span>
+          <div id="victory-scrap" class="text-xl font-bold text-amber-300 tabular-nums">20/20</div>
+        </div>
+      </div>
+
+      <button id="btn-restart-victory" data-start="true" class="w-full py-3.5 px-6 bg-gradient-to-r from-cyan-400 via-teal-400 to-purple-500 hover:from-cyan-300 text-gray-950 font-mono font-black text-lg rounded-xl shadow-[0_0_25px_rgba(34,211,238,0.5)] cursor-pointer">
+        🔄 RE-DEPLOY
+      </button>
+    </div>
+  </div>
+
+  <!-- PAUSE MODAL -->
+  <div id="screen-pause" class="fixed inset-0 z-30 hidden items-center justify-center p-4 bg-gray-950/85 pointer-events-auto">
+    <div class="max-w-sm w-full bg-gray-900 border-2 border-purple-500/80 rounded-2xl p-6 shadow-[0_0_35px_rgba(168,85,247,0.3)] text-center">
+      <h2 class="text-2xl font-black font-mono tracking-tight text-purple-400 mb-2">MISSION PAUSED</h2>
+      <div class="flex flex-col gap-3 font-mono mt-4">
+        <button id="btn-resume" class="w-full py-3 px-4 bg-cyan-600 hover:bg-cyan-500 text-gray-950 font-bold rounded-xl cursor-pointer">▶ RESUME FLIGHT</button>
+        <button id="btn-restart-pause" data-start="true" class="w-full py-3 px-4 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold rounded-xl border border-gray-600 cursor-pointer">🔄 ABORT & RE-DEPLOY</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Game Script -->
+  <script>
+    // --- Procedural Sound Synth ---
+    class SoundFX {
+      constructor() {
+        this.ctx = null;
+        this.muted = false;
+      }
+      init() {
+        if (!this.ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtx) this.ctx = new AudioCtx();
+        }
+        if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+      }
+      toggleMute() {
+        this.muted = !this.muted;
+        return this.muted;
+      }
+      playLaser() {
+        if (this.muted) return;
+        this.init();
+        if (!this.ctx) return;
+        const t = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(880, t);
+        osc.frequency.exponentialRampToValueAtTime(110, t + 0.1);
+        g.gain.setValueAtTime(0.2, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+        osc.connect(g);
+        g.connect(this.ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.11);
+      }
+      playPickup(isFuel) {
+        if (this.muted) return;
+        this.init();
+        if (!this.ctx) return;
+        const t = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        osc.type = isFuel ? 'sine' : 'triangle';
+        osc.frequency.setValueAtTime(isFuel ? 260 : 580, t);
+        osc.frequency.exponentialRampToValueAtTime(isFuel ? 660 : 1170, t + 0.18);
+        g.gain.setValueAtTime(0.25, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+        osc.connect(g);
+        g.connect(this.ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.22);
+      }
+      playHit() {
+        if (this.muted) return;
+        this.init();
+        if (!this.ctx) return;
+        const t = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(140, t);
+        osc.frequency.exponentialRampToValueAtTime(35, t + 0.3);
+        g.gain.setValueAtTime(0.4, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+        osc.connect(g);
+        g.connect(this.ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.32);
+      }
+    }
+    const audio = new SoundFX();
+
+    // --- State & Storage ---
+    const STORAGE_KEY = 'void_extractor_standalone_save';
+    function getSave() {
+      try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || { highScore: 0, scrap: 0 };
+      } catch (e) {
+        return { highScore: 0, scrap: 0 };
+      }
+    }
+    function saveStats(score, scrap) {
+      try {
+        const s = getSave();
+        s.highScore = Math.max(s.highScore, score);
+        s.scrap += scrap;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+      } catch (e) {}
+    }
+
+    // --- Three.js Game Setup ---
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x030712);
+
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 0, 22);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = false;
+    container.appendChild(renderer.domElement);
+
+    // 1 AmbientLight + 1 DirectionalLight
+    scene.add(new THREE.AmbientLight(0x223344, 1.2));
+    const dirLight = new THREE.DirectionalLight(0x38bdf8, 1.0);
+    dirLight.position.set(5, 12, 15);
+    scene.add(dirLight);
+
+    // Starfield
+    const starCount = 500;
+    const starGeom = new THREE.BufferGeometry();
+    const starPos = new Float32Array(starCount * 3);
+    for (let i = 0; i < starCount; i++) {
+      starPos[i * 3] = (Math.random() - 0.5) * 110;
+      starPos[i * 3 + 1] = (Math.random() - 0.5) * 80;
+      starPos[i * 3 + 2] = -10 - Math.random() * 40;
+    }
+    starGeom.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+    const starMat = new THREE.PointsMaterial({ color: 0x38bdf8, size: 0.7 });
+    const starfield = new THREE.Points(starGeom, starMat);
+    scene.add(starfield);
+
+    // Player Ship (Multi-part low poly)
+    const playerGroup = new THREE.Group();
+    const hullGeom = new THREE.ConeGeometry(0.85, 2.4, 5);
+    hullGeom.rotateX(Math.PI / 2);
+    const hull = new THREE.Mesh(hullGeom, new THREE.MeshLambertMaterial({ color: 0x9333ea, flatShading: true }));
+    const wings = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.12, 0.9), new THREE.MeshLambertMaterial({ color: 0x06b6d4, flatShading: true }));
+    wings.position.set(0, -0.4, 0);
+    const thruster = new THREE.Mesh(new THREE.ConeGeometry(0.4, 1.2, 5), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
+    thruster.rotateX(-Math.PI / 2);
+    thruster.position.set(0, -1.5, 0);
+    playerGroup.add(hull, wings, thruster);
+    playerGroup.position.set(0, -5, 0);
+    scene.add(playerGroup);
+
+    // Extraction Warp Gate (Torus mesh)
+    const warpGroup = new THREE.Group();
+    const torus = new THREE.Mesh(new THREE.TorusGeometry(3.0, 0.65, 8, 24), new THREE.MeshBasicMaterial({ color: 0x22d3ee, wireframe: true }));
+    warpGroup.add(torus);
+    warpGroup.visible = false;
+    scene.add(warpGroup);
+
+    // --- Object Pools ---
+    const asteroidPool = [];
+    const astGeom = new THREE.IcosahedronGeometry(1.2, 0);
+    const astMat = new THREE.MeshLambertMaterial({ color: 0x64748b, flatShading: true });
+    for (let i = 0; i < 25; i++) {
+      const m = new THREE.Mesh(astGeom, astMat);
+      m.visible = false;
+      scene.add(m);
+      asteroidPool.push({ mesh: m, active: false, vel: new THREE.Vector3(), rot: new THREE.Vector3(), radius: 1.3 });
+    }
+
+    const dronePool = [];
+    const droneGeom = new THREE.BoxGeometry(1.1, 1.1, 1.1);
+    const droneMat = new THREE.MeshLambertMaterial({ color: 0xd946ef, flatShading: true });
+    for (let i = 0; i < 10; i++) {
+      const m = new THREE.Mesh(droneGeom, droneMat);
+      m.visible = false;
+      scene.add(m);
+      dronePool.push({ mesh: m, active: false, vel: new THREE.Vector3(), radius: 1.0 });
+    }
+
+    const fuelPool = [];
+    const fuelGeom = new THREE.CylinderGeometry(0.45, 0.45, 1.1, 6);
+    const fuelMat = new THREE.MeshLambertMaterial({ color: 0x10b981, emissive: 0x059669 });
+    for (let i = 0; i < 8; i++) {
+      const m = new THREE.Mesh(fuelGeom, fuelMat);
+      m.visible = false;
+      scene.add(m);
+      fuelPool.push({ mesh: m, active: false, vel: new THREE.Vector3(), radius: 1.1 });
+    }
+
+    const scrapPool = [];
+    const scrapGeom = new THREE.OctahedronGeometry(0.65, 0);
+    const scrapMat = new THREE.MeshLambertMaterial({ color: 0xfbbf24, emissive: 0xd97706 });
+    for (let i = 0; i < 12; i++) {
+      const m = new THREE.Mesh(scrapGeom, scrapMat);
+      m.visible = false;
+      scene.add(m);
+      scrapPool.push({ mesh: m, active: false, vel: new THREE.Vector3(), radius: 1.0 });
+    }
+
+    const projPool = [];
+    const projGeom = new THREE.CylinderGeometry(0.1, 0.1, 1.1, 4);
+    projGeom.rotateX(Math.PI / 2);
+    const projMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+    for (let i = 0; i < 30; i++) {
+      const m = new THREE.Mesh(projGeom, projMat);
+      m.visible = false;
+      scene.add(m);
+      projPool.push({ mesh: m, active: false, vel: new THREE.Vector3(), radius: 0.4 });
+    }
+
+    // --- State Variables ---
+    let gameState = 'title';
+    let shields = 100;
+    let fuel = 100;
+    let scrap = 0;
+    let score = 0;
+    let warpActive = false;
+    let lastTime = performance.now();
+    let playerVel = new THREE.Vector3();
+    let keys = {};
+    let touchMove = { x: 0, y: 0 };
+    let asteroidTimer = 0;
+    let droneTimer = 0;
+    let fuelTimer = 0;
+    let scrapTimer = 0;
+    let shootCooldown = 0;
+
+    const bounds = { minX: -14, maxX: 14, minY: -8.5, maxY: 8.5 };
+
+    // --- DOM Elements ---
+    const hud = document.getElementById('hud');
+    const mobileControls = document.getElementById('mobile-controls');
+    const screenStart = document.getElementById('screen-start');
+    const screenGameOver = document.getElementById('screen-gameover');
+    const screenVictory = document.getElementById('screen-victory');
+    const screenPause = document.getElementById('screen-pause');
+    const shieldText = document.getElementById('shield-text');
+    const shieldBar = document.getElementById('shield-bar');
+    const fuelText = document.getElementById('fuel-text');
+    const fuelBar = document.getElementById('fuel-bar');
+    const scrapText = document.getElementById('scrap-text');
+    const scoreText = document.getElementById('score-text');
+    const warpBadge = document.getElementById('warp-badge');
+
+    // Load initial save stats into Start Screen
+    const save = getSave();
+    document.getElementById('start-high-score').textContent = save.highScore.toLocaleString();
+    document.getElementById('start-scrap').textContent = save.scrap.toLocaleString();
+
+    function updateHUD() {
+      shieldText.textContent = Math.round(shields) + '%';
+      shieldBar.style.width = Math.max(0, shields) + '%';
+      fuelText.textContent = Math.round(fuel) + '%';
+      fuelBar.style.width = Math.max(0, fuel) + '%';
+      scrapText.textContent = scrap;
+      scoreText.textContent = Math.round(score).toLocaleString();
+      if (warpActive) warpBadge.classList.remove('hidden');
+      else warpBadge.classList.add('hidden');
+    }
+
+    function resetEntities() {
+      [asteroidPool, dronePool, fuelPool, scrapPool, projPool].forEach(pool => {
+        pool.forEach(item => {
+          item.active = false;
+          item.mesh.visible = false;
+        });
+      });
+      asteroidTimer = droneTimer = fuelTimer = scrapTimer = 0;
+      warpActive = false;
+      warpGroup.visible = false;
+      playerGroup.position.set(0, -5, 0);
+      playerVel.set(0, 0, 0);
+    }
+
+    function startGame() {
+      resetEntities();
+      shields = 100;
+      fuel = 100;
+      scrap = 0;
+      score = 0;
+      gameState = 'playing';
+      document.body.dataset.state = 'playing';
+      updateHUD();
+
+      screenStart.classList.add('hidden');
+      screenGameOver.classList.add('hidden');
+      screenGameOver.classList.remove('flex');
+      screenVictory.classList.add('hidden');
+      screenVictory.classList.remove('flex');
+      screenPause.classList.add('hidden');
+      screenPause.classList.remove('flex');
+
+      hud.classList.remove('hidden');
+      hud.classList.add('flex');
+      mobileControls.classList.remove('hidden');
+      mobileControls.classList.add('flex');
+    }
+
+    function fireLaser() {
+      if (shootCooldown > 0 || gameState !== 'playing') return;
+      shootCooldown = 0.22;
+      audio.playLaser();
+      for (const p of projPool) {
+        if (!p.active) {
+          p.active = true;
+          p.mesh.visible = true;
+          p.mesh.position.set(playerGroup.position.x, playerGroup.position.y + 0.6, 0);
+          p.vel.set(0, 24, 0);
+          return;
+        }
+      }
+    }
+
+    // --- Inputs ---
+    window.addEventListener('keydown', e => {
+      keys[e.key.toLowerCase()] = true;
+      if (gameState === 'title' && (e.key === ' ' || e.key === 'Enter')) {
+        startGame();
+      } else if (gameState === 'playing' && e.key === ' ') {
+        fireLaser();
+      } else if (e.key === 'Escape' || e.key.toLowerCase() === 'p') {
+        if (gameState === 'playing') {
+          gameState = 'paused';
+          screenPause.classList.remove('hidden');
+          screenPause.classList.add('flex');
+        } else if (gameState === 'paused') {
+          gameState = 'playing';
+          screenPause.classList.add('hidden');
+          screenPause.classList.remove('flex');
+        }
+      } else if (e.key.toLowerCase() === 'm') {
+        audio.toggleMute();
+      }
+    });
+    window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+
+    // Buttons
+    document.getElementById('btn-start').onclick = startGame;
+    document.getElementById('btn-restart-gameover').onclick = startGame;
+    document.getElementById('btn-restart-victory').onclick = startGame;
+    document.getElementById('btn-restart-pause').onclick = startGame;
+    document.getElementById('btn-resume').onclick = () => {
+      gameState = 'playing';
+      screenPause.classList.add('hidden');
+      screenPause.classList.remove('flex');
+    };
+    document.getElementById('btn-mute').onclick = () => { audio.toggleMute(); };
+    document.getElementById('btn-pause').onclick = () => {
+      if (gameState === 'playing') {
+        gameState = 'paused';
+        screenPause.classList.remove('hidden');
+        screenPause.classList.add('flex');
+      } else if (gameState === 'paused') {
+        gameState = 'playing';
+        screenPause.classList.add('hidden');
+        screenPause.classList.remove('flex');
+      }
+    };
+    document.getElementById('btn-fire-desktop').onclick = fireLaser;
+
+    // Mobile touch
+    const bindTouchDir = (id, dx, dy) => {
+      const el = document.getElementById(id);
+      const start = () => { touchMove.x = dx; touchMove.y = dy; };
+      const end = () => { touchMove.x = 0; touchMove.y = 0; };
+      el.addEventListener('touchstart', start);
+      el.addEventListener('touchend', end);
+      el.addEventListener('mousedown', start);
+      el.addEventListener('mouseup', end);
+    };
+    bindTouchDir('touch-up', 0, 1);
+    bindTouchDir('touch-down', 0, -1);
+    bindTouchDir('touch-left', -1, 0);
+    bindTouchDir('touch-right', 1, 0);
+    document.getElementById('touch-fire').addEventListener('touchstart', fireLaser);
+    document.getElementById('touch-fire').addEventListener('mousedown', fireLaser);
+
+    // Window resize
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // Check ?autostart=1
+    if (new URLSearchParams(window.location.search).get('autostart') === '1') {
+      startGame();
+    }
+
+    // --- 60FPS Game Loop ---
+    function tick() {
+      requestAnimationFrame(tick);
+      const now = performance.now();
+      const dt = Math.min((now - lastTime) / 1000, 0.05);
+      lastTime = now;
+
+      // Drift starfield
+      const pos = starfield.geometry.attributes.position.array;
+      for (let i = 1; i < pos.length; i += 3) {
+        pos[i] -= (gameState === 'playing' ? 14 : 4) * dt;
+        if (pos[i] < -40) pos[i] = 40;
+      }
+      starfield.geometry.attributes.position.needsUpdate = true;
+
+      if (gameState === 'playing') {
+        // Fuel drain
+        fuel = Math.max(0, fuel - dt * 2.2);
+        score += dt * 35;
+        if (shootCooldown > 0) shootCooldown -= dt;
+
+        // Ship move
+        let mx = touchMove.x;
+        let my = touchMove.y;
+        if (keys['a'] || keys['arrowleft']) mx -= 1;
+        if (keys['d'] || keys['arrowright']) mx += 1;
+        if (keys['w'] || keys['arrowup']) my += 1;
+        if (keys['s'] || keys['arrowdown']) my -= 1;
+
+        playerVel.x = THREE.MathUtils.damp(playerVel.x, mx * 16, 12, dt);
+        playerVel.y = THREE.MathUtils.damp(playerVel.y, my * 16, 12, dt);
+        playerGroup.position.x = Math.max(bounds.minX, Math.min(bounds.maxX, playerGroup.position.x + playerVel.x * dt));
+        playerGroup.position.y = Math.max(bounds.minY, Math.min(bounds.maxY, playerGroup.position.y + playerVel.y * dt));
+        playerGroup.rotation.z = -playerVel.x * 0.035;
+
+        // Spawners
+        asteroidTimer += dt;
+        if (asteroidTimer > 0.7) {
+          asteroidTimer = 0;
+          for (const a of asteroidPool) {
+            if (!a.active) {
+              a.active = true; a.mesh.visible = true;
+              a.mesh.position.set(bounds.minX + Math.random() * (bounds.maxX - bounds.minX), bounds.maxY + 2, 0);
+              a.vel.set((Math.random() - 0.5) * 2, -(3.5 + Math.random() * 2), 0);
+              a.rot.set(Math.random(), Math.random(), Math.random());
+              break;
+            }
+          }
+        }
+
+        droneTimer += dt;
+        if (droneTimer > 4.0) {
+          droneTimer = 0;
+          for (const d of dronePool) {
+            if (!d.active) {
+              d.active = true; d.mesh.visible = true;
+              const cx = Math.random() < 0.5 ? bounds.minX - 1 : bounds.maxX + 1;
+              d.mesh.position.set(cx, bounds.maxY, 0);
+              break;
+            }
+          }
+        }
+
+        fuelTimer += dt;
+        if (fuelTimer > 4.5) {
+          fuelTimer = 0;
+          for (const f of fuelPool) {
+            if (!f.active) {
+              f.active = true; f.mesh.visible = true;
+              f.mesh.position.set(bounds.minX + 2 + Math.random() * (bounds.maxX - bounds.minX - 4), bounds.maxY + 2, 0);
+              f.vel.set(0, -2.6, 0);
+              break;
+            }
+          }
+        }
+
+        scrapTimer += dt;
+        if (scrapTimer > 2.0) {
+          scrapTimer = 0;
+          for (const s of scrapPool) {
+            if (!s.active) {
+              s.active = true; s.mesh.visible = true;
+              s.mesh.position.set(bounds.minX + 2 + Math.random() * (bounds.maxX - bounds.minX - 4), bounds.maxY + 2, 0);
+              s.vel.set((Math.random() - 0.5), -2.4, 0);
+              break;
+            }
+          }
+        }
+
+        // Updates & Collisions
+        for (const p of projPool) {
+          if (!p.active) continue;
+          p.mesh.position.addScaledVector(p.vel, dt);
+          if (p.mesh.position.y > bounds.maxY + 2) { p.active = false; p.mesh.visible = false; }
+          // Proj vs Asteroid
+          for (const a of asteroidPool) {
+            if (a.active && p.mesh.position.distanceTo(a.mesh.position) < a.radius + p.radius) {
+              p.active = false; p.mesh.visible = false;
+              a.active = false; a.mesh.visible = false;
+              score += 100; audio.playHit();
+              break;
+            }
+          }
+        }
+
+        for (const a of asteroidPool) {
+          if (!a.active) continue;
+          a.mesh.position.addScaledVector(a.vel, dt);
+          a.mesh.rotation.x += a.rot.x * dt;
+          if (a.mesh.position.y < bounds.minY - 3) { a.active = false; a.mesh.visible = false; }
+          if (a.mesh.position.distanceTo(playerGroup.position) < a.radius + 1.1) {
+            a.active = false; a.mesh.visible = false;
+            shields -= 22; audio.playHit();
+          }
+        }
+
+        for (const d of dronePool) {
+          if (!d.active) continue;
+          const dir = new THREE.Vector2(playerGroup.position.x - d.mesh.position.x, playerGroup.position.y - d.mesh.position.y).normalize();
+          d.vel.set(dir.x * 6.8, dir.y * 6.8, 0);
+          d.mesh.position.addScaledVector(d.vel, dt);
+          d.mesh.rotation.z += 3 * dt;
+          if (d.mesh.position.distanceTo(playerGroup.position) < d.radius + 1.1) {
+            d.active = false; d.mesh.visible = false;
+            shields -= 16; audio.playHit();
+          }
+        }
+
+        for (const f of fuelPool) {
+          if (!f.active) continue;
+          f.mesh.position.addScaledVector(f.vel, dt);
+          f.mesh.rotation.y += 2 * dt;
+          if (f.mesh.position.y < bounds.minY - 3) { f.active = false; f.mesh.visible = false; }
+          if (f.mesh.position.distanceTo(playerGroup.position) < f.radius + 1.1) {
+            f.active = false; f.mesh.visible = false;
+            fuel = Math.min(100, fuel + 30); score += 150; audio.playPickup(true);
+          }
+        }
+
+        for (const s of scrapPool) {
+          if (!s.active) continue;
+          s.mesh.position.addScaledVector(s.vel, dt);
+          s.mesh.rotation.y += 3 * dt;
+          if (s.mesh.position.y < bounds.minY - 3) { s.active = false; s.mesh.visible = false; }
+          if (s.mesh.position.distanceTo(playerGroup.position) < s.radius + 1.1) {
+            s.active = false; s.mesh.visible = false;
+            scrap++; score += 250; audio.playPickup(false);
+            if (scrap >= 20 && !warpActive) {
+              warpActive = true;
+              warpGroup.visible = true;
+              warpGroup.position.set(0, 2, 0);
+            }
+          }
+        }
+
+        if (warpActive) {
+          torus.rotation.x += 1.5 * dt;
+          torus.rotation.y += 2.0 * dt;
+          if (warpGroup.position.distanceTo(playerGroup.position) < 2.5) {
+            gameState = 'victory';
+            score += 5000;
+            saveStats(score, scrap);
+            document.getElementById('victory-score').textContent = Math.round(score).toLocaleString();
+            document.getElementById('victory-scrap').textContent = scrap + '/20';
+            screenVictory.classList.remove('hidden');
+            screenVictory.classList.add('flex');
+            hud.classList.add('hidden');
+            mobileControls.classList.add('hidden');
+          }
+        }
+
+        updateHUD();
+
+        // Check Defeat
+        if (shields <= 0 || fuel <= 0) {
+          gameState = 'gameover';
+          saveStats(score, scrap);
+          document.getElementById('gameover-reason').textContent = shields <= 0 ? 'Shields Depleted (Hull Crushed)' : 'Fuel Reserves Exhausted';
+          document.getElementById('gameover-score').textContent = Math.round(score).toLocaleString();
+          document.getElementById('gameover-scrap').textContent = scrap + '/20';
+          screenGameOver.classList.remove('hidden');
+          screenGameOver.classList.add('flex');
+          hud.classList.add('hidden');
+          mobileControls.classList.add('hidden');
+        }
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    tick();
+  </script>
+</body>
+</html>
